@@ -5,6 +5,7 @@
 
 static bool g_test_mode = false;
 
+// Thresholds
 const float TEMP_LOW  = 95.0f;
 const float TEMP_HIGH = 102.0f;
 const float PULSE_LOW = 60.0f;
