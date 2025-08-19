@@ -6,11 +6,13 @@
 static bool g_test_mode = false;
 
 // Thresholds
-const float TEMP_LOW  = 95.0f;
-const float TEMP_HIGH = 102.0f;
-const float PULSE_LOW = 60.0f;
+const float TEMP_LOW   = 95.0f;
+const float TEMP_HIGH  = 102.0f;
+const float PULSE_LOW  = 60.0f;
 const float PULSE_HIGH = 100.0f;
-const float SPO2_LOW = 90.0f;
+const float SPO2_LOW   = 90.0f;
+const float RESP_LOW   = 12.0f;   // breaths/min
+const float RESP_HIGH  = 20.0f;   // breaths/min
 
 void setTestMode(bool enabled) {
     g_test_mode = enabled;
@@ -18,7 +20,7 @@ void setTestMode(bool enabled) {
 
 static void flashAlert(const char* message) {
     std::cout << message << "\n";
-    if (g_test_mode) return; // skip blinking in tests
+    if (g_test_mode) return;
 
     for (int i = 0; i < 6; ++i) {
         std::cout << "\r* " << std::flush;
@@ -29,7 +31,7 @@ static void flashAlert(const char* message) {
     std::cout << "\r  \n";
 }
 
-AlarmMask evaluateVitals(float temperature, float pulseRate, float spo2) {
+AlarmMask evaluateVitals(float temperature, float pulseRate, float spo2, float respirationRate) {
     AlarmMask mask = ALARM_NONE;
 
     if (temperature < TEMP_LOW) {
@@ -48,11 +50,17 @@ AlarmMask evaluateVitals(float temperature, float pulseRate, float spo2) {
         addAlarm(mask, ALARM_SPO2_LOW);
     }
 
+    if (respirationRate < RESP_LOW) {
+        addAlarm(mask, ALARM_RESP_LOW);
+    } else if (respirationRate > RESP_HIGH) {
+        addAlarm(mask, ALARM_RESP_HIGH);
+    }
+
     return mask;
 }
 
-int vitalsOk(float temperature, float pulseRate, float spo2) {
-    AlarmMask mask = evaluateVitals(temperature, pulseRate, spo2);
+int vitalsOk(float temperature, float pulseRate, float spo2, float respirationRate) {
+    AlarmMask mask = evaluateVitals(temperature, pulseRate, spo2, respirationRate);
     if (mask == ALARM_NONE) {
         return 1;
     }
@@ -71,6 +79,12 @@ int vitalsOk(float temperature, float pulseRate, float spo2) {
     }
     if (isAlarmSet(mask, ALARM_SPO2_LOW)) {
         flashAlert("Oxygen Saturation out of range!");
+    }
+    if (isAlarmSet(mask, ALARM_RESP_LOW)) {
+        flashAlert("Respiration Rate is too low!");
+    }
+    if (isAlarmSet(mask, ALARM_RESP_HIGH)) {
+        flashAlert("Respiration Rate is too high!");
     }
 
     return 0;
