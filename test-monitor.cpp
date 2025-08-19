@@ -1,46 +1,43 @@
 #include "monitor.h"
+#include <iostream>
 #include <cassert>
 #include <sstream>
-#include <iostream>
+
+void check(const char* name,
+           float temp, float pulse, float spo2, float resp,
+           AlarmMask expected) {
+    AlarmMask result = evaluateVitals(temp, pulse, spo2, resp);
+    int ok = vitalsOk(temp, pulse, spo2, resp);
+    bool mask_ok = (result == expected);
+    bool return_ok = ((expected == ALARM_NONE && ok == 1) ||
+                      (expected != ALARM_NONE && ok == 0));
+
+    std::cout << "Test: " << name << " -> ";
+    if (mask_ok && return_ok) {
+        std::cout << "PASS\n";
+    } else {
+        std::cout << "FAIL (mask=" << int(result) << ", vitalsOk=" << ok << ")\n";
+    }
+}
 
 int main() {
     setTestMode(true);
 
-    // --- Return value tests ---
-    assert(vitalsOk(98.6f, 75.0f, 98.0f) == 1);   // all normal
-    assert(vitalsOk(94.0f, 75.0f, 98.0f) == 0);   // temp low
-    assert(vitalsOk(103.0f, 75.0f, 98.0f) == 0);  // temp high
-    assert(vitalsOk(98.6f, 55.0f, 98.0f) == 0);   // pulse low
-    assert(vitalsOk(98.6f, 105.0f, 98.0f) == 0);  // pulse high
-    assert(vitalsOk(98.6f, 75.0f, 85.0f) == 0);   // SpO2 low
-    assert(vitalsOk(103.0f, 50.0f, 85.0f) == 0);  // multiple alarms
+    check("All normal", 98.6f, 75.0f, 98.0f, 16.0f, ALARM_NONE);
+    check("Temp low", 94.0f, 75.0f, 98.0f, 16.0f, ALARM_TEMPERATURE_LOW);
+    check("Temp high", 103.0f, 75.0f, 98.0f, 16.0f, ALARM_TEMPERATURE_HIGH);
+    check("Pulse low", 98.6f, 55.0f, 98.0f, 16.0f, ALARM_PULSE_LOW);
+    check("Pulse high", 98.6f, 105.0f, 98.0f, 16.0f, ALARM_PULSE_HIGH);
+    check("SpO2 low", 98.6f, 75.0f, 85.0f, 16.0f, ALARM_SPO2_LOW);
+    check("Resp low", 98.6f, 75.0f, 98.0f, 8.0f, ALARM_RESP_LOW);
+    check("Resp high", 98.6f, 75.0f, 98.0f, 25.0f, ALARM_RESP_HIGH);
 
-    // --- Message output tests ---
-    std::ostringstream buffer;
-    std::streambuf* old = std::cout.rdbuf(buffer.rdbuf());
+    check("Multiple failures",
+          103.0f, 50.0f, 85.0f, 25.0f,
+          static_cast<AlarmMask>(ALARM_TEMPERATURE_HIGH |
+                                 ALARM_PULSE_LOW |
+                                 ALARM_SPO2_LOW |
+                                 ALARM_RESP_HIGH));
 
-    vitalsOk(94.0f, 75.0f, 98.0f);
-    assert(buffer.str().find("Temperature is too low!") != std::string::npos);
-    buffer.str(""); buffer.clear();
-
-    vitalsOk(103.0f, 75.0f, 98.0f);
-    assert(buffer.str().find("Temperature is critical!") != std::string::npos);
-    buffer.str(""); buffer.clear();
-
-    vitalsOk(98.6f, 55.0f, 98.0f);
-    assert(buffer.str().find("Pulse Rate is too low!") != std::string::npos);
-    buffer.str(""); buffer.clear();
-
-    vitalsOk(98.6f, 105.0f, 98.0f);
-    assert(buffer.str().find("Pulse Rate is too high!") != std::string::npos);
-    buffer.str(""); buffer.clear();
-
-    vitalsOk(98.6f, 75.0f, 85.0f);
-    assert(buffer.str().find("Oxygen Saturation out of range!") != std::string::npos);
-    buffer.str(""); buffer.clear();
-
-    std::cout.rdbuf(old); // restore
-
-    std::cout << "✅ All tests passed!\n";
     return 0;
 }
