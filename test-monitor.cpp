@@ -1,7 +1,7 @@
 #include "monitor.h"
 #include <iostream>
-#include <cassert>
 
+// Simple helper to run a single test case
 void check(const char* name,
            float temperature, float pulse, float spo2, float resp,
            AlarmMask expected) {
@@ -23,10 +23,10 @@ void check(const char* name,
 int main() {
     setTestMode(true);
 
-    // Normal case
+    // --- Normal case ---
     check("All normal", 98.6f, 75.0f, 98.0f, 16.0f, ALARM_NONE);
 
-    // Single alarms
+    // --- Single alarms ---
     check("Temperature low", 94.0f, 75.0f, 98.0f, 16.0f, ALARM_TEMPERATURE_LOW);
     check("Temperature high", 103.0f, 75.0f, 98.0f, 16.0f, ALARM_TEMPERATURE_HIGH);
     check("Pulse low", 98.6f, 55.0f, 98.0f, 16.0f, ALARM_PULSE_LOW);
@@ -35,14 +35,14 @@ int main() {
     check("Resp low", 98.6f, 75.0f, 98.0f, 8.0f, ALARM_RESP_LOW);
     check("Resp high", 98.6f, 75.0f, 98.0f, 25.0f, ALARM_RESP_HIGH);
 
-    // Multiple alarms
+    // --- Multiple alarms ---
     check("Multiple alarms", 103.0f, 50.0f, 85.0f, 25.0f,
           static_cast<AlarmMask>(ALARM_TEMPERATURE_HIGH |
                                  ALARM_PULSE_LOW |
                                  ALARM_SPO2_LOW |
                                  ALARM_RESP_HIGH));
 
-    // Edge cases: exactly at thresholds
+    // --- Edge cases: exactly at thresholds ---
     check("Temperature at low boundary", 95.0f, 75.0f, 98.0f, 16.0f, ALARM_NONE);
     check("Temperature at high boundary", 102.0f, 75.0f, 98.0f, 16.0f, ALARM_NONE);
     check("Pulse at low boundary", 98.6f, 60.0f, 98.0f, 16.0f, ALARM_NONE);
@@ -51,10 +51,8 @@ int main() {
     check("Resp at low boundary", 98.6f, 75.0f, 98.0f, 12.0f, ALARM_NONE);
     check("Resp at high boundary", 98.6f, 75.0f, 98.0f, 20.0f, ALARM_NONE);
 
-    // Combined edge: all at lower bounds
+    // --- Combined edges ---
     check("All at lower bounds", 95.0f, 60.0f, 90.0f, 12.0f, ALARM_NONE);
-
-    // Combined edge: all at upper bounds
     check("All at upper bounds", 102.0f, 100.0f, 98.0f, 20.0f, ALARM_NONE);
 
     return 0;
