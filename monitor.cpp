@@ -4,20 +4,17 @@
 #include <chrono>
 
 static bool g_test_mode = false;
+void setTestMode(bool enabled) { g_test_mode = enabled; }
 
-void setTestMode(bool enabled) {
-    g_test_mode = enabled;
-}
-
-// Threshold table (avoids duplication)
-static const VitalThreshold thresholds[] = {
-    {95.0f, 102.0f, ALARM_TEMPERATURE_LOW,  ALARM_TEMPERATURE_HIGH},
-    {60.0f, 100.0f, ALARM_PULSE_LOW,        ALARM_PULSE_HIGH},
-    {90.0f, 1e9f,   ALARM_SPO2_LOW,         ALARM_NONE}, // no upper alarm
-    {12.0f, 20.0f,  ALARM_RESP_LOW,         ALARM_RESP_HIGH}
+// Table of thresholds (shared for all vitals)
+struct VitalData {
+    float value;
+    float low;
+    float high;
+    AlarmMask lowAlarm;
+    AlarmMask highAlarm;
 };
 
-// Message mapping
 static const char* alarmMessages[] = {
     "Temperature is too low!",
     "Temperature is critical!",
@@ -28,29 +25,11 @@ static const char* alarmMessages[] = {
     "Respiration Rate is too high!"
 };
 
-// Pure function: evaluate a single vital against thresholds
-static AlarmMask checkVital(float value, const VitalThreshold& t) {
-    if (value < t.low) return t.lowAlarm;
-    if (value > t.high) return t.highAlarm;
-    return ALARM_NONE;
-}
-
-// Pure function: evaluate all vitals
-AlarmMask evaluateVitals(float temperature, float pulseRate, float spo2, float respirationRate) {
-    float values[] = {temperature, pulseRate, spo2, respirationRate};
-    AlarmMask mask = ALARM_NONE;
-    for (int i = 0; i < 4; i++) {
-        addAlarm(mask, checkVital(values[i], thresholds[i]));
-    }
-    return mask;
-}
-
-// I/O: flashing alert (kept separate from logic)
-static void flashAlert(const char* message) {
-    std::cout << message << "\n";
+// Flashing alert (side effect, separate from evaluation)
+static void flashAlert(const char* msg) {
+    std::cout << msg << "\n";
     if (g_test_mode) return;
-
-    for (int i = 0; i < 6; ++i) {
+    for (int i = 0; i < 6; i++) {
         std::cout << "\r* " << std::flush;
         std::this_thread::sleep_for(std::chrono::seconds(1));
         std::cout << "\r *" << std::flush;
@@ -59,16 +38,34 @@ static void flashAlert(const char* message) {
     std::cout << "\r  \n";
 }
 
-// I/O wrapper: trigger alarms
+// Pure function: evaluate a single vital (complexity = 1)
+static AlarmMask checkVital(const VitalData& v) {
+    AlarmMask mask = ALARM_NONE;
+    mask |= (v.value < v.low) ? v.lowAlarm : ALARM_NONE;
+    mask |= (v.value > v.high) ? v.highAlarm : ALARM_NONE;
+    return mask;
+}
+
+// Pure function: evaluate all vitals (complexity = 1)
+AlarmMask evaluateVitals(float temperature, float pulseRate, float spo2, float respirationRate) {
+    VitalData vitals[] = {
+        {temperature, 95.0f, 102.0f, ALARM_TEMPERATURE_LOW, ALARM_TEMPERATURE_HIGH},
+        {pulseRate, 60.0f, 100.0f, ALARM_PULSE_LOW, ALARM_PULSE_HIGH},
+        {spo2, 90.0f, 1e9f, ALARM_SPO2_LOW, ALARM_NONE},
+        {respirationRate, 12.0f, 20.0f, ALARM_RESP_LOW, ALARM_RESP_HIGH}
+    };
+    AlarmMask mask = ALARM_NONE;
+    for (const auto& v : vitals) mask |= checkVital(v);
+    return mask;
+}
+
+// Side-effect function: trigger alerts (complexity = 1)
 int vitalsOk(float temperature, float pulseRate, float spo2, float respirationRate) {
     AlarmMask mask = evaluateVitals(temperature, pulseRate, spo2, respirationRate);
     if (mask == ALARM_NONE) return 1;
 
-    for (int bit = 0; bit < 7; bit++) {
-        AlarmMask alarmBit = (1 << bit);
-        if (isAlarmSet(mask, alarmBit)) {
-            flashAlert(alarmMessages[bit]);
-        }
+    for (int i = 0; i < 7; i++) {
+        if (isAlarmSet(mask, 1 << i)) flashAlert(alarmMessages[i]);
     }
     return 0;
 }
